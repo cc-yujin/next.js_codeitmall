@@ -1,26 +1,12 @@
-import { useState, useEffect } from "react";
-import { useRouter } from "next/router";
 import axios from "@/lib/axios";
 import styles from "@/styles/Product.module.css";
 import SizeReviewList from "@/components/SizeReviewList";
 import StarRating from "@/components/StarRating";
 import Image from "next/image";
 import Spinner from "@/components/Spinner";
+import { useState } from "react";
 
-export async function getStaticPaths() {
-  const res = await axios.get("/products/");
-  const products = res.data.results;
-  const paths = products.map((product) => ({
-    params: { id: String(product.id) },
-  }));
-
-  return {
-    paths,
-    fallback: true,
-  };
-}
-
-export async function getStaticProps(context) {
+export async function getServerSideProps(context) {
   const productId = context.params["id"];
   let product;
   try {
@@ -32,29 +18,43 @@ export async function getStaticProps(context) {
     };
   }
 
+  const res = await axios.get(`/size_reviews/?product_id=${productId}`);
+  const sizeReviews = res.data.results ?? [];
+
   return {
     props: {
       product,
+      sizeReviews,
     },
   };
 }
 
-export default function Product({ product }) {
-  const [sizeReviews, setSizeReviews] = useState([]);
-  const router = useRouter();
-  const { id } = router.query;
+export default function Product({ product, sizeReviews: initialSizeReviews }) {
+  const [sizeReviews, setSizeReviews] = useState(initialSizeReviews);
+  const [formValue, setFormValue] = useState({
+    size: "M",
+    sex: "male",
+    height: 173,
+    fit: "good",
+  });
 
-  async function getSizeReviews(targetId) {
-    const res = await axios.get(`/size_reviews/?product_id=${targetId}`);
-    const nextSizeReviews = res.data.results ?? [];
-    setSizeReviews(nextSizeReviews);
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const sizeReview = {
+      ...formValue,
+      productId: product.id,
+    };
+    const res = await axios.post("/size_reviews", sizeReview);
+    const newSizeReview = res.data;
+    setSizeReviews((prevSizeReview) => [newSizeReview, ...prevSizeReview]);
   }
 
-  useEffect(() => {
-    if (!id) return;
-
-    getSizeReviews(id);
-  }, [id]);
+  function handleChange(name, value) {
+    setFormValue({
+      ...formValue,
+      [name]: value,
+    });
+  }
 
   if (!product)
     return (
